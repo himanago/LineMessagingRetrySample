@@ -39,12 +39,12 @@ namespace LineMessagingRetrySample
             var documents = input.Select(x => (MessageDocument)(dynamic)x);
 
             // メッセージ（最大5件ずつ）
-            foreach (var messages in documents.Select((doc, idx) => (doc, idx))
+            foreach (var data in documents.Select((doc, idx) => (doc, idx))
                 .GroupBy(x => x.idx / 5)
-                .Select(x => x.Select(x => new { type = "text", text = x.doc.Text })))
+                .Select(x => x.Select(x => x.doc)))
             {
                 var json = JsonSerializer.Serialize(
-                    new { messages = messages },
+                    new { messages = data.Select(x => new { type = "text", text = x.Text }) },
                     new JsonSerializerOptions
                     {
                         IgnoreNullValues = true,
@@ -69,7 +69,9 @@ namespace LineMessagingRetrySample
                 var request = new HttpRequestMessage(
                     HttpMethod.Post, "/v2/bot/message/broadcast");
                 request.Headers.Add("Authorization", "Bearer " + channelAccessToken);
-                request.Headers.Add("X-Line-Retry-Key", input[0].Id);
+                // 5件ずつに区切ったうちの1件目のIDをリトライキーとして使う
+                // 5件ずつループしなければinput[0].IdでOK
+                request.Headers.Add("X-Line-Retry-Key", data.First().Id);
                 request.Content = new StringContent(json, Encoding.UTF8, "application/json");
                 var response = await _httpClient.SendAsync(request);
 
